@@ -30,7 +30,7 @@ export async function savePreferences(prefs: UserPreferences): Promise<void> {
     await writeJSON("preferences.json", prefs);
 }
 
-interface OAuthTokens {
+export interface OAuthTokens {
     access_token: string;
     refresh_token: string;
     scope: string;

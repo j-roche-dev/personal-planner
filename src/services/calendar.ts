@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import { createServer } from "node:http";
 import { URL } from "node:url";
 import { exec } from "node:child_process";
-import { getTokens, saveTokens } from "./storage.js";
+import { getTokens, saveTokens, type OAuthTokens } from "./storage.js";
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar"];
 const REDIRECT_URI = "http://localhost:3000/oauth2callback";
@@ -20,13 +20,7 @@ export class GoogleCalendarService {
 
         this.oauth2Client.on("tokens", (tokens) => {
             if (tokens.refresh_token) {
-                saveTokens(tokens as {
-                    access_token: string;
-                    refresh_token: string;
-                    scope: string;
-                    token_type: string;
-                    expiry_date: number;
-                }).catch((err) =>
+                saveTokens(tokens as OAuthTokens).catch((err) =>
                     console.error("Failed to save refreshed tokens:", err)
                 );
             }
@@ -69,13 +63,7 @@ export class GoogleCalendarService {
 
                     const { tokens } = await this.oauth2Client.getToken(code);
                     this.oauth2Client.setCredentials(tokens);
-                    await saveTokens(tokens as {
-                        access_token: string;
-                        refresh_token: string;
-                        scope: string;
-                        token_type: string;
-                        expiry_date: number;
-                    });
+                    await saveTokens(tokens as OAuthTokens);
 
                     res.writeHead(200, { "Content-Type": "text/html" });
                     res.end(

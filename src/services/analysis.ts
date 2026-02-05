@@ -36,7 +36,7 @@ const LIFE_AREA_KEYWORDS: Record<string, string[]> = {
     work: [
         "meeting", "standup", "sync", "review", "sprint", "work", "project",
         "deadline", "presentation", "interview", "1:1", "one-on-one",
-        "planning", "retro", "demo", "scrum", "standup", "kickoff",
+        "planning", "retro", "demo", "scrum", "kickoff",
     ],
     fitness: [
         "gym", "workout", "run", "running", "yoga", "exercise", "fitness",
@@ -57,11 +57,17 @@ const LIFE_AREA_KEYWORDS: Record<string, string[]> = {
 };
 
 function getEventStart(event: CalendarEvent): Date {
-    return new Date(event.start?.dateTime || event.start?.date || "");
+    const raw = event.start?.dateTime || event.start?.date;
+    if (!raw) return new Date(0);
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? new Date(0) : d;
 }
 
 function getEventEnd(event: CalendarEvent): Date {
-    return new Date(event.end?.dateTime || event.end?.date || "");
+    const raw = event.end?.dateTime || event.end?.date;
+    if (!raw) return new Date(0);
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? new Date(0) : d;
 }
 
 function getEventDurationMinutes(event: CalendarEvent): number {
