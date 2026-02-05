@@ -1,0 +1,28 @@
+{
+    "name": "personal-planner",
+    "version": "0.1.0",
+    "type": "module",
+    "bin": {
+        "personal-planner": "./build/index.js"
+    },
+    "scripts": {
+        "build": "tsc && chmod 755 build/index.js",
+        "dev": "tsx src/index.ts",
+        "start": "node build/index.js",
+        "auth": "tsx src/services/calendar.ts"
+    },
+    "files": [
+        "build"
+    ],
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.24.3",
+        "googleapis": "^144.0.0",
+        "zod": "^3.24.0",
+        "dotenv": "^16.4.0"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "tsx": "^4.0.0",
+        "typescript": "^5.9.0"
+    }
+}

@@ -1,0 +1,57 @@
+{
+    "energyPatterns": {
+        "highEnergy": [{ "start": "08:00", "end": "11:00" }],
+        "mediumEnergy": [
+            { "start": "11:00", "end": "13:00" },
+            { "start": "14:00", "end": "16:00" }
+        ],
+        "lowEnergy": [
+            { "start": "13:00", "end": "14:00" },
+            { "start": "16:00", "end": "18:00" }
+        ]
+    },
+    "lifeAreas": [
+        { "name": "work", "weeklyTargetHours": 40, "priority": 1 },
+        { "name": "fitness", "weeklyTargetHours": 5, "priority": 2 },
+        { "name": "hobbies", "weeklyTargetHours": 5, "priority": 3 },
+        { "name": "personal", "weeklyTargetHours": 10, "priority": 4 },
+        { "name": "social", "weeklyTargetHours": 4, "priority": 5 }
+    ],
+    "schedulingRules": {
+        "minBreakBetweenEvents": 15,
+        "maxMeetingsPerDay": 6,
+        "protectedBlocks": [
+            {
+                "day": "monday",
+                "start": "12:00",
+                "end": "13:00",
+                "label": "Lunch"
+            },
+            {
+                "day": "tuesday",
+                "start": "12:00",
+                "end": "13:00",
+                "label": "Lunch"
+            },
+            {
+                "day": "wednesday",
+                "start": "12:00",
+                "end": "13:00",
+                "label": "Lunch"
+            },
+            {
+                "day": "thursday",
+                "start": "12:00",
+                "end": "13:00",
+                "label": "Lunch"
+            },
+            {
+                "day": "friday",
+                "start": "12:00",
+                "end": "13:00",
+                "label": "Lunch"
+            }
+        ],
+        "preferredPlanningDay": "sunday"
+    }
+}
