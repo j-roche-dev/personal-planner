@@ -26,7 +26,17 @@ Events are automatically categorized into life areas using keyword matching (e.g
 
 ## Architecture
 
-[![](https://mermaid.ink/svg/pako:eNptUctOwzAQvPMVPpZDmgMnJFQpskQF4hGlvVk9mHibGkwcrR0eIvw7ziY1NSKSldHszuyO3aDsDuyuOmPh41xwI3sFjFsFO5Zlq8F5pS273Tw-ZFXJB3bPSxEO2wC-AV49Yb7SrYKPpXe7chwLQci21honLqd_WqrA2R5rcOLiF6ctJdrXzo8NM5rKZEYNRe8PX9C6HmGE31SOZrGF6BEQw6UR4UCrJFICXQNFqGcypoiSopXm02knjiDRyZmMuuBO19ZY2xiQnXYDW49jF2tiWBxflDfnf0OVCHsnNt6ibCAZ5CYuzkmTkm7a-7hlShOixRCkyt9RexhYea0NiIWSXuZd6ACENlgun51t593-F25PhN6-hGc41cx3MGl_AGwqwZc)](https://mermaid.live/edit#pako:eNptUctOwzAQvPMVPpZDmgMnJFQpskQF4hGlvVk9mHibGkwcrR0eIvw7ziY1NSKSldHszuyO3aDsDuyuOmPh41xwI3sFjFsFO5Zlq8F5pS273Tw-ZFXJB3bPSxEO2wC-AV49Yb7SrYKPpXe7chwLQci21honLqd_WqrA2R5rcOLiF6ctJdrXzo8NM5rKZEYNRe8PX9C6HmGE31SOZrGF6BEQw6UR4UCrJFICXQNFqGcypoiSopXm02knjiDRyZmMuuBO19ZY2xiQnXYDW49jF2tiWBxflDfnf0OVCHsnNt6ibCAZ5CYuzkmTkm7a-7hlShOixRCkyt9RexhYea0NiIWSXuZd6ACENlgun51t593-F25PhN6-hGc41cx3MGl_AGwqwZc)
+```mermaid
+graph LR
+    CC[Claude Code] <-->|stdio JSON-RPC| MCP[index.ts\nMCP Server]
+    MCP --> Cal[calendar.ts\nGoogle Calendar API]
+    MCP --> Store[storage.ts\nJSON File I/O]
+    MCP --> Analysis[analysis.ts\nPure Functions]
+    Cal <-->|OAuth2| GCal[(Google Calendar)]
+    Store <-->|read/write| Data[(data/\npreferences.json\ntokens.json)]
+    Analysis -.->|CalendarEvent\nUserPreferences| Cal
+    Analysis -.-> Store
+```
 
 ```
 src/
