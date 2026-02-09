@@ -2,3 +2,4 @@ node_modules/
 build/
 .env
 data/tokens.json
+data/preferences.json

@@ -1,6 +1,8 @@
-# CLAUDE.md
+<!-- Auto-generated from CLAUDE.md by agents-md-sync. Edit the source CLAUDE.md, then re-run the sync. -->
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+# AGENTS.md
+
+This file provides guidance to the AI coding agent when working with code in this repository.
 
 ## Commands
 
@@ -14,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-This is an MCP (Model Context Protocol) server that provides schedule planning tools to Claude Code. It communicates over stdio using `@modelcontextprotocol/sdk`.
+This is an MCP (Model Context Protocol) server that provides schedule planning tools to the AI coding agent. It communicates over stdio using `@modelcontextprotocol/sdk`.
 
 ### Entry Point & Registration
 

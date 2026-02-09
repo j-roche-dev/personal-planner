@@ -61,6 +61,7 @@ export interface ScheduleAnalysis {
         area: string;
         scheduledHours: number;
         targetHours: number;
+        dailyTarget: number;
         delta: number;
     }[];
     freeSlots: TimeSlot[];

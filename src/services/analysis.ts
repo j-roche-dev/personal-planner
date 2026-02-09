@@ -246,7 +246,8 @@ function calculateLifeAreaBreakdown(
         area: la.name,
         scheduledHours: Math.round((hoursPerArea[la.name] || 0) * 10) / 10,
         targetHours: la.weeklyTargetHours,
-        delta: Math.round(((hoursPerArea[la.name] || 0) - la.weeklyTargetHours) * 10) / 10,
+        dailyTarget: Math.round((la.weeklyTargetHours / 7) * 10) / 10,
+        delta: Math.round(((hoursPerArea[la.name] || 0) - la.weeklyTargetHours / 7) * 10) / 10,
     }));
 }
 
