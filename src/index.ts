@@ -116,7 +116,10 @@ server.tool(
     async ({ timeMin, timeMax }) => {
         const err = await ensureAuth();
         if (err) return textResult(err, true);
-        const events = await calendarService.getEvents(timeMin, timeMax);
+        const events = await calendarService.getEvents(
+            new Date(timeMin).toISOString(),
+            new Date(timeMax).toISOString()
+        );
         return textResult(events);
     }
 );
@@ -239,6 +242,7 @@ server.tool(
             protectedBlocks: z.array(TimeBlockSchema).optional(),
             preferredPlanningDay: z.string().optional(),
         }).optional().describe("Scheduling rules and constraints"),
+        categoryKeywords: z.record(z.array(z.string())).optional().describe("Custom keyword map for categorizing events into life areas. Keys are area names, values are arrays of keywords. If not set, built-in defaults are used."),
     },
     async (updates) => {
         const current = await getPreferences();

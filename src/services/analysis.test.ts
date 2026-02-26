@@ -188,7 +188,6 @@ describe("analyzeDay", () => {
 
     it("categorizes events into life areas", () => {
         const events = [
-            // "gym" matches fitness (note: "Gym workout" would match work via "work" substring)
             makeEvent("1", "Gym session", "2025-06-09T08:00:00", "2025-06-09T09:00:00"),
             makeEvent("2", "Sprint planning", "2025-06-09T10:00:00", "2025-06-09T11:00:00"),
             makeEvent("3", "Dinner with friends", "2025-06-09T19:00:00", "2025-06-09T20:00:00"),
@@ -200,6 +199,49 @@ describe("analyzeDay", () => {
         expect(breakdown.fitness).toBe(1);
         expect(breakdown.work).toBe(1);
         expect(breakdown.social).toBe(1);
+    });
+
+    it("categorizes music and learning events before work", () => {
+        const events = [
+            makeEvent("1", "Guitar lesson", "2025-06-09T08:00:00", "2025-06-09T09:00:00"),
+            makeEvent("2", "Study session", "2025-06-09T10:00:00", "2025-06-09T11:00:00"),
+        ];
+        const prefsWithAreas = {
+            ...basePrefs,
+            lifeAreas: [
+                ...basePrefs.lifeAreas,
+                { name: "music", weeklyTargetHours: 3, priority: 6 },
+                { name: "learning", weeklyTargetHours: 3, priority: 7 },
+            ],
+        };
+        const result = analyzeDay(events, prefsWithAreas, "2025-06-09");
+        const breakdown = Object.fromEntries(
+            result.lifeAreaBreakdown.map((b) => [b.area, b.scheduledHours])
+        );
+        expect(breakdown.music).toBe(1);
+        expect(breakdown.learning).toBe(1);
+    });
+
+    it("uses custom categoryKeywords from preferences", () => {
+        const events = [
+            makeEvent("1", "Knitting circle", "2025-06-09T08:00:00", "2025-06-09T09:00:00"),
+        ];
+        const prefsWithCustom = {
+            ...basePrefs,
+            lifeAreas: [
+                ...basePrefs.lifeAreas,
+                { name: "crafts", weeklyTargetHours: 2, priority: 6 },
+            ],
+            categoryKeywords: {
+                crafts: ["knitting", "sewing", "crochet"],
+                work: ["meeting", "standup"],
+            },
+        };
+        const result = analyzeDay(events, prefsWithCustom, "2025-06-09");
+        const breakdown = Object.fromEntries(
+            result.lifeAreaBreakdown.map((b) => [b.area, b.scheduledHours])
+        );
+        expect(breakdown.crafts).toBe(1);
     });
 
     it("handles events with missing start/end gracefully", () => {

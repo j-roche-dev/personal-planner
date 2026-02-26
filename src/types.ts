@@ -34,6 +34,7 @@ export interface UserPreferences {
         protectedBlocks: TimeBlock[];
         preferredPlanningDay: string;
     };
+    categoryKeywords?: Record<string, string[]>;
 }
 
 export interface Habit {

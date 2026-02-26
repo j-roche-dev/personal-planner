@@ -17,8 +17,8 @@ export async function readJSON<T>(filename: string): Promise<T> {
 }
 
 export async function writeJSON<T>(filename: string, data: T): Promise<void> {
-    await ensureDir(DATA_DIR);
     const filepath = join(DATA_DIR, filename);
+    await ensureDir(dirname(filepath));
     await writeFile(filepath, JSON.stringify(data, null, 4) + "\n", "utf-8");
 }
 
