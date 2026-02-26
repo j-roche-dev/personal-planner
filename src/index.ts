@@ -5,14 +5,27 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { GoogleCalendarService } from "./services/calendar.js";
-import { getPreferences, savePreferences } from "./services/storage.js";
+import {
+    getPreferences,
+    savePreferences,
+    getProfile,
+    saveProfile,
+    getSetupStatus,
+    saveSetupStatus,
+} from "./services/storage.js";
 import {
     analyzeDay,
     analyzeWeek,
     findFreeSlots,
     type CalendarEvent,
 } from "./services/analysis.js";
-import type { UserPreferences } from "./types.js";
+import {
+    getChecklist,
+    addItem,
+    updateItem,
+    removeItem,
+} from "./services/checklist.js";
+import type { UserPreferences, UserProfile } from "./types.js";
 
 const server = new McpServer({
     name: "personal-planner",
@@ -61,6 +74,14 @@ function weekBounds(): { start: string; end: string } {
     return { start: fmt(monday), end: fmt(sunday) };
 }
 
+async function getReadCalendarIds(): Promise<string[]> {
+    const prefs = await getPreferences();
+    const ids = ["primary"];
+    const plannerCalId = prefs.schedulingRules.plannerCalendarId;
+    if (plannerCalId) ids.push(plannerCalId);
+    return ids;
+}
+
 function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
     const result = { ...target };
     for (const key of Object.keys(source)) {
@@ -103,8 +124,21 @@ server.tool("ping", "Check server status and Google Calendar auth status", {}, a
             ? "authenticated"
             : "credentials configured, not authenticated (run `npm run auth`)";
     }
-    return textResult({ status: "ok", server: "personal-planner", version: "0.1.0", googleCalendar: calendarStatus });
+    const setup = await getSetupStatus();
+    return textResult({ status: "ok", server: "personal-planner", version: "0.1.0", googleCalendar: calendarStatus, setup });
 });
+
+server.tool(
+    "calendar_list",
+    "List the user's Google Calendars (id + name). Useful for finding the planner calendar ID.",
+    {},
+    async () => {
+        const err = await ensureAuth();
+        if (err) return textResult(err, true);
+        const calendars = await calendarService.listCalendars();
+        return textResult(calendars);
+    }
+);
 
 server.tool(
     "calendar_get_events",
@@ -116,9 +150,11 @@ server.tool(
     async ({ timeMin, timeMax }) => {
         const err = await ensureAuth();
         if (err) return textResult(err, true);
-        const events = await calendarService.getEvents(
+        const calIds = await getReadCalendarIds();
+        const events = await calendarService.getEventsMultiCalendar(
             new Date(timeMin).toISOString(),
-            new Date(timeMax).toISOString()
+            new Date(timeMax).toISOString(),
+            calIds
         );
         return textResult(events);
     }
@@ -138,13 +174,15 @@ server.tool(
     async ({ summary, start, end, description, timeZone, colorId }) => {
         const err = await ensureAuth();
         if (err) return textResult(err, true);
+        const prefs = await getPreferences();
+        const calId = prefs.schedulingRules.plannerCalendarId || "primary";
         const event = await calendarService.createEvent({
             summary,
             description,
             start: { dateTime: start, timeZone },
             end: { dateTime: end, timeZone },
             colorId,
-        });
+        }, calId);
         return textResult(event);
     }
 );
@@ -160,8 +198,9 @@ server.tool(
         description: z.string().optional().describe("New description"),
         timeZone: z.string().optional().describe("IANA time zone"),
         colorId: z.string().optional().describe("Google Calendar color ID (1-11)"),
+        calendarId: z.string().optional().describe("Calendar ID (needed for non-primary calendars, e.g. planner calendar)"),
     },
-    async ({ eventId, summary, start, end, description, timeZone, colorId }) => {
+    async ({ eventId, summary, start, end, description, timeZone, colorId, calendarId }) => {
         const err = await ensureAuth();
         if (err) return textResult(err, true);
         const updates: Record<string, unknown> = {};
@@ -170,7 +209,7 @@ server.tool(
         if (colorId !== undefined) updates.colorId = colorId;
         if (start !== undefined) updates.start = { dateTime: start, timeZone };
         if (end !== undefined) updates.end = { dateTime: end, timeZone };
-        const event = await calendarService.updateEvent(eventId, updates as Parameters<typeof calendarService.updateEvent>[1]);
+        const event = await calendarService.updateEvent(eventId, updates as Parameters<typeof calendarService.updateEvent>[1], calendarId);
         return textResult(event);
     }
 );
@@ -180,11 +219,12 @@ server.tool(
     "Delete a Google Calendar event",
     {
         eventId: z.string().describe("Google Calendar event ID"),
+        calendarId: z.string().optional().describe("Calendar ID (needed for non-primary calendars, e.g. planner calendar)"),
     },
-    async ({ eventId }) => {
+    async ({ eventId, calendarId }) => {
         const err = await ensureAuth();
         if (err) return textResult(err, true);
-        await calendarService.deleteEvent(eventId);
+        await calendarService.deleteEvent(eventId, calendarId);
         return textResult({ deleted: true, eventId });
     }
 );
@@ -202,9 +242,11 @@ server.tool(
         if (err) return textResult(err, true);
         const timeMin = `${date}T00:00:00`;
         const timeMax = `${date}T23:59:59`;
-        const events = await calendarService.getEvents(
+        const calIds = await getReadCalendarIds();
+        const events = await calendarService.getEventsMultiCalendar(
             new Date(timeMin).toISOString(),
-            new Date(timeMax).toISOString()
+            new Date(timeMax).toISOString(),
+            calIds
         );
         const prefs = await getPreferences();
         const slots = findFreeSlots(events as CalendarEvent[], prefs, date, duration, energyLevel);
@@ -241,6 +283,7 @@ server.tool(
             maxMeetingsPerDay: z.number().optional(),
             protectedBlocks: z.array(TimeBlockSchema).optional(),
             preferredPlanningDay: z.string().optional(),
+            plannerCalendarId: z.string().optional().describe("Calendar ID for MCP-created events (e.g. planner-cli calendar)"),
         }).optional().describe("Scheduling rules and constraints"),
         categoryKeywords: z.record(z.array(z.string())).optional().describe("Custom keyword map for categorizing events into life areas. Keys are area names, values are arrays of keywords. If not set, built-in defaults are used."),
     },
@@ -267,10 +310,137 @@ server.tool(
         const targetDate = date || todayDate();
         const timeMin = new Date(`${targetDate}T00:00:00`).toISOString();
         const timeMax = new Date(`${targetDate}T23:59:59`).toISOString();
-        const events = await calendarService.getEvents(timeMin, timeMax);
+        const calIds = await getReadCalendarIds();
+        const events = await calendarService.getEventsMultiCalendar(timeMin, timeMax, calIds);
         const prefs = await getPreferences();
         const analysis = analyzeDay(events as CalendarEvent[], prefs, targetDate);
         return textResult(analysis);
+    }
+);
+
+// ---------------------------------------------------------------------------
+// Checklist tools
+// ---------------------------------------------------------------------------
+
+server.tool(
+    "checklist_get",
+    "Get today's checklist (or a specific date). Carries over incomplete items from the most recent prior day.",
+    {
+        date: z.string().optional().describe("Date (YYYY-MM-DD). Defaults to today."),
+    },
+    async ({ date }) => {
+        const checklist = await getChecklist(date);
+        return textResult(checklist);
+    }
+);
+
+server.tool(
+    "checklist_add",
+    "Add an item to today's checklist",
+    {
+        text: z.string().describe("What needs to be done"),
+        area: z.string().describe("Work area (e.g. work, fitness, personal) or life area"),
+        size: z.enum(["quick", "medium", "long"]).optional().describe("Estimated size: quick (<15min), medium (15-60min), long (>1h)"),
+        deadline: z.string().optional().describe("Due date (YYYY-MM-DD)"),
+    },
+    async ({ text, area, size, deadline }) => {
+        const checklist = await addItem(text, area, size, deadline);
+        return textResult(checklist);
+    }
+);
+
+server.tool(
+    "checklist_update",
+    "Update a checklist item (mark complete, change text/area/size/deadline)",
+    {
+        id: z.string().describe("Checklist item ID"),
+        text: z.string().optional().describe("New text"),
+        area: z.string().optional().describe("New area"),
+        size: z.enum(["quick", "medium", "long"]).optional().describe("New size"),
+        deadline: z.string().optional().describe("Due date (YYYY-MM-DD)"),
+        completed: z.boolean().optional().describe("Mark as completed (true) or incomplete (false)"),
+    },
+    async ({ id, text, area, size, deadline, completed }) => {
+        try {
+            const checklist = await updateItem(id, { text, area, size, deadline, completed });
+            return textResult(checklist);
+        } catch (err) {
+            return textResult((err as Error).message, true);
+        }
+    }
+);
+
+server.tool(
+    "checklist_remove",
+    "Remove an item from today's checklist",
+    {
+        id: z.string().describe("Checklist item ID"),
+    },
+    async ({ id }) => {
+        try {
+            const checklist = await removeItem(id);
+            return textResult(checklist);
+        } catch (err) {
+            return textResult((err as Error).message, true);
+        }
+    }
+);
+
+// ---------------------------------------------------------------------------
+// Profile tools
+// ---------------------------------------------------------------------------
+
+server.tool(
+    "profile_get",
+    "Read user profile (name, bio, goals, planning cadence)",
+    {},
+    async () => {
+        const profile = await getProfile();
+        if (!profile) return textResult("Profile not set up yet. Run the setup-personal prompt to get started.");
+        return textResult(profile);
+    }
+);
+
+server.tool(
+    "profile_update",
+    "Update user profile (deep-merged with existing profile)",
+    {
+        name: z.string().optional().describe("User's name"),
+        bio: z.string().optional().describe("Who they are, what they do"),
+        goals: z.array(z.string()).optional().describe("High-level goals"),
+        planningCadence: z.object({
+            weeklyPlanningTime: z.string().optional().describe("e.g. 'Sunday 7pm'"),
+            dailyCheckinTime: z.string().optional().describe("e.g. '8am weekdays'"),
+            weeklyReviewTime: z.string().optional().describe("e.g. 'Sunday evening'"),
+        }).optional().describe("Preferred planning times"),
+        notes: z.string().optional().describe("Catch-all for anything else"),
+    },
+    async (updates) => {
+        const now = new Date().toISOString();
+        let current = await getProfile();
+        if (!current) {
+            current = {
+                name: "",
+                bio: "",
+                goals: [],
+                planningCadence: {
+                    weeklyPlanningTime: "",
+                    dailyCheckinTime: "",
+                    weeklyReviewTime: "",
+                },
+                notes: "",
+                createdAt: now,
+                updatedAt: now,
+            };
+        }
+        const merged = deepMerge(
+            current as unknown as Record<string, unknown>,
+            updates as unknown as Record<string, unknown>
+        ) as unknown as UserProfile;
+        merged.updatedAt = now;
+        if (!merged.createdAt) merged.createdAt = now;
+        await saveProfile(merged);
+        return textResult(merged);
     }
 );
 
@@ -302,9 +472,11 @@ server.resource(
             };
         }
         const date = todayDate();
-        const events = await calendarService.getEvents(
+        const calIds = await getReadCalendarIds();
+        const events = await calendarService.getEventsMultiCalendar(
             new Date(`${date}T00:00:00`).toISOString(),
-            new Date(`${date}T23:59:59`).toISOString()
+            new Date(`${date}T23:59:59`).toISOString(),
+            calIds
         );
         const prefs = await getPreferences();
         const analysis = analyzeDay(events as CalendarEvent[], prefs, date);
@@ -328,7 +500,8 @@ server.resource(
         const { start, end } = weekBounds();
         const timeMin = new Date(`${start}T00:00:00`).toISOString();
         const timeMax = new Date(`${end}T23:59:59`).toISOString();
-        const allEvents = await calendarService.getEvents(timeMin, timeMax) as CalendarEvent[];
+        const calIds = await getReadCalendarIds();
+        const allEvents = await calendarService.getEventsMultiCalendar(timeMin, timeMax, calIds) as CalendarEvent[];
         const prefs = await getPreferences();
 
         const eventsByDay = new Map<string, CalendarEvent[]>();
@@ -428,11 +601,80 @@ server.prompt(
                         "Let's review how my week went:",
                         "",
                         "1. Fetch this past week's calendar events and analyze the full week.",
-                        "2. Show me the life-area breakdown — am I hitting my targets for work, fitness, hobbies, personal, social?",
+                        "2. Show me the life-area breakdown — am I hitting my targets?",
                         "3. Highlight patterns: which days were overloaded? Which had good balance?",
                         "4. List any recurring conflicts or warnings across the week.",
                         "5. Ask me: what went well this week? What felt off?",
                         "6. Based on everything, suggest 2-3 concrete adjustments for next week.",
+                    ].join("\n"),
+                },
+            },
+        ],
+    })
+);
+
+server.prompt(
+    "setup-technical",
+    "Walk through OAuth setup and calendar configuration",
+    {},
+    async () => ({
+        messages: [
+            {
+                role: "user" as const,
+                content: {
+                    type: "text" as const,
+                    text: [
+                        "Let's get the planner's technical setup done. Walk me through these steps:",
+                        "",
+                        "1. **Check current status**: Run ping to see what's already configured.",
+                        "2. **OAuth setup**: If Google Calendar isn't authenticated, guide me through:",
+                        "   - Verify `.env` has `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`",
+                        "   - Run `npm run auth` to complete the OAuth flow",
+                        "   - Verify authentication works by running ping again",
+                        "3. **Planner calendar**: Run calendar_list to show my calendars.",
+                        "   - If a planner calendar exists (e.g. 'planner-cli'), offer to set it via preferences_update.",
+                        "   - If not, explain how to create one in Google Calendar and come back.",
+                        "4. **Verify**: Run ping one final time to confirm everything is green.",
+                        "",
+                        "Start by checking the current status now.",
+                    ].join("\n"),
+                },
+            },
+        ],
+    })
+);
+
+server.prompt(
+    "setup-personal",
+    "Conversational onboarding — get to know the user and configure the planner",
+    {},
+    async () => ({
+        messages: [
+            {
+                role: "user" as const,
+                content: {
+                    type: "text" as const,
+                    text: [
+                        "Let's set up the planner to work for me personally. This is a conversation, not a form.",
+                        "",
+                        "**Your approach**:",
+                        "- Introduce yourself briefly as my planning assistant.",
+                        "- Have a natural conversation to learn about me. Don't rush through questions — ask follow-ups.",
+                        "- Suggest sensible defaults when I'm unsure.",
+                        "- At the end, summarize everything captured and confirm it looks right.",
+                        "",
+                        "**What to gather** (through conversation, not as a checklist):",
+                        "1. Who am I? Name, what I do, what my life looks like day-to-day.",
+                        "2. What are my main life areas and how much time I want to give each? → save via preferences_update (lifeAreas).",
+                        "3. What does my energy look like throughout the day? When am I sharpest? → save via preferences_update (energyPatterns).",
+                        "4. What does my typical work schedule look like? Any protected blocks? → save via preferences_update (schedulingRules).",
+                        "5. What habits do I want to build or maintain? → save each via habit_add.",
+                        "6. What are my current goals (can be vague, like 'get healthier' or 'ship the project')? → save via profile_update.",
+                        "7. When do I want to do planning? Daily check-ins? Weekly planning/review? → save via profile_update (planningCadence).",
+                        "",
+                        "After everything is saved, mark personalSetupComplete: true in setup status.",
+                        "",
+                        "Start the conversation now — introduce yourself and ask your first question.",
                     ].join("\n"),
                 },
             },

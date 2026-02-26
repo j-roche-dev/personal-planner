@@ -149,6 +149,33 @@ export class GoogleCalendarService {
         });
     }
 
+    async listCalendars(): Promise<{ id: string; summary: string }[]> {
+        const response = await this.calendar.calendarList.list();
+        return (response.data.items ?? []).map((cal) => ({
+            id: cal.id ?? "",
+            summary: cal.summary ?? "",
+        }));
+    }
+
+    async getEventsMultiCalendar(
+        timeMin: string,
+        timeMax: string,
+        calendarIds: string[]
+    ) {
+        const results = await Promise.all(
+            calendarIds
+                .filter(Boolean)
+                .map((id) => this.getEvents(timeMin, timeMax, id))
+        );
+        const all = results.flat();
+        all.sort((a, b) => {
+            const aStart = a.start?.dateTime || a.start?.date || "";
+            const bStart = b.start?.dateTime || b.start?.date || "";
+            return aStart.localeCompare(bStart);
+        });
+        return all;
+    }
+
     async getFreeBusy(timeMin: string, timeMax: string, calendarId = "primary") {
         const response = await this.calendar.freebusy.query({
             requestBody: {
