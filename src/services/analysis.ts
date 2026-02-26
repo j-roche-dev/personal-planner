@@ -32,19 +32,27 @@ export interface WeekAnalysis {
 const DAY_START_HOUR = 7;
 const DAY_END_HOUR = 21;
 
-const LIFE_AREA_KEYWORDS: Record<string, string[]> = {
-    work: [
-        "meeting", "standup", "sync", "review", "sprint", "work", "project",
-        "deadline", "presentation", "interview", "1:1", "one-on-one",
-        "planning", "retro", "demo", "scrum", "kickoff",
+// Order matters: first matching area wins. More specific areas (music, learning,
+// fitness) are checked before broader ones (work) to avoid substring collisions
+// (e.g. "music practice" matching "work" via the substring "practice").
+const DEFAULT_CATEGORY_KEYWORDS: Record<string, string[]> = {
+    music: [
+        "guitar", "songwriting", "music", "jam session", "recording",
+        "piano", "bass", "drums", "chord", "riff",
+    ],
+    learning: [
+        "language", "study", "course", "reading", "certification",
+        "tutorial", "lesson", "workshop", "seminar",
     ],
     fitness: [
         "gym", "workout", "run", "running", "yoga", "exercise", "fitness",
         "swim", "cycling", "hike", "walk", "training", "crossfit", "pilates",
+        "basketball", "soccer", "tennis", "volleyball", "sport",
     ],
-    hobbies: [
-        "hobby", "paint", "draw", "music", "guitar", "piano", "read",
-        "game", "craft", "cook", "photography", "garden",
+    work: [
+        "meeting", "standup", "sync", "review", "sprint", "work", "project",
+        "deadline", "presentation", "interview", "1:1", "one-on-one",
+        "planning", "retro", "demo", "scrum", "kickoff",
     ],
     personal: [
         "doctor", "dentist", "appointment", "errand", "haircut", "pharmacy",
@@ -101,10 +109,14 @@ function getEnergyLevel(
     return "medium";
 }
 
-function categorizeEvent(event: CalendarEvent): string | null {
+function categorizeEvent(
+    event: CalendarEvent,
+    categoryKeywords?: Record<string, string[]>
+): string | null {
+    const keywords = categoryKeywords ?? DEFAULT_CATEGORY_KEYWORDS;
     const text = `${event.summary || ""} ${event.description || ""}`.toLowerCase();
-    for (const [area, keywords] of Object.entries(LIFE_AREA_KEYWORDS)) {
-        if (keywords.some((kw) => text.includes(kw))) return area;
+    for (const [area, kws] of Object.entries(keywords)) {
+        if (kws.some((kw) => text.includes(kw))) return area;
     }
     return null;
 }
@@ -235,7 +247,7 @@ function calculateLifeAreaBreakdown(
     const hoursPerArea: Record<string, number> = {};
 
     for (const event of events) {
-        const area = categorizeEvent(event);
+        const area = categorizeEvent(event, prefs.categoryKeywords);
         if (area) {
             hoursPerArea[area] =
                 (hoursPerArea[area] || 0) + getEventDurationMinutes(event) / 60;
