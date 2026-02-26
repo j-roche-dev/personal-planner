@@ -89,6 +89,8 @@ export interface ChecklistItem {
     completed: boolean;
     carriedFrom?: string;
     completedAt?: string;
+    completionNote?: string;
+    billableHours?: number;
 }
 
 export interface DailyChecklist {
@@ -108,6 +110,29 @@ export interface UserProfile {
     notes: string;
     createdAt: string;
     updatedAt: string;
+}
+
+export interface DailyLog {
+    date: string;
+    habits: HabitEntry[];
+    reflection: {
+        notes: string;
+        mood?: "great" | "good" | "okay" | "rough" | "bad";
+        energyRating?: number;
+    };
+    plannedHighlights: string[];
+    actualHighlights: string[];
+    adjustments: string[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface HabitEntry {
+    habitId: string;
+    habitName: string;
+    completed: boolean;
+    duration?: number;
+    notes?: string;
 }
 
 export interface SetupStatus {
