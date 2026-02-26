@@ -25,6 +25,18 @@ import {
     updateItem,
     removeItem,
 } from "./services/checklist.js";
+import {
+    getHabits,
+    addHabit,
+    updateHabit,
+    removeHabit,
+    getHabitCompletionRate,
+} from "./services/habits.js";
+import {
+    getDailyLog,
+    updateDailyLog,
+    getRecentLogs,
+} from "./services/daily-log.js";
 import type { UserPreferences, UserProfile } from "./types.js";
 
 const server = new McpServer({
@@ -351,7 +363,7 @@ server.tool(
 
 server.tool(
     "checklist_update",
-    "Update a checklist item (mark complete, change text/area/size/deadline)",
+    "Update a checklist item (mark complete, change text/area/size/deadline, add billing info)",
     {
         id: z.string().describe("Checklist item ID"),
         text: z.string().optional().describe("New text"),
@@ -359,10 +371,12 @@ server.tool(
         size: z.enum(["quick", "medium", "long"]).optional().describe("New size"),
         deadline: z.string().optional().describe("Due date (YYYY-MM-DD)"),
         completed: z.boolean().optional().describe("Mark as completed (true) or incomplete (false)"),
+        completionNote: z.string().optional().describe("Billing description or completion note"),
+        billableHours: z.number().optional().describe("Billable hours (e.g. 1.5)"),
     },
-    async ({ id, text, area, size, deadline, completed }) => {
+    async ({ id, text, area, size, deadline, completed, completionNote, billableHours }) => {
         try {
-            const checklist = await updateItem(id, { text, area, size, deadline, completed });
+            const checklist = await updateItem(id, { text, area, size, deadline, completed, completionNote, billableHours });
             return textResult(checklist);
         } catch (err) {
             return textResult((err as Error).message, true);
@@ -441,6 +455,140 @@ server.tool(
         if (!merged.createdAt) merged.createdAt = now;
         await saveProfile(merged);
         return textResult(merged);
+    }
+);
+
+// ---------------------------------------------------------------------------
+// Habit tools
+// ---------------------------------------------------------------------------
+
+server.tool(
+    "habit_list",
+    "List all habits with optional completion rates over N days",
+    {
+        days: z.number().optional().describe("Number of days to calculate completion rates over (default 7)"),
+    },
+    async ({ days }) => {
+        const habits = await getHabits();
+        if (habits.length === 0) return textResult("No habits defined yet. Use habit_add to create one.");
+        const recentLogs = await getRecentLogs(days || 7);
+        const result = habits.map((h) => ({
+            ...h,
+            completionRate: getHabitCompletionRate(h.id, recentLogs),
+        }));
+        return textResult(result);
+    }
+);
+
+server.tool(
+    "habit_add",
+    "Add a new habit to track",
+    {
+        name: z.string().describe("Habit name (e.g. 'Morning run')"),
+        weeklyTarget: z.number().describe("How many times per week"),
+        lifeArea: z.string().describe("Life area (e.g. fitness, learning, personal)"),
+        defaultDuration: z.number().describe("Default duration in minutes"),
+        preferredTimeOfDay: z.enum(["morning", "afternoon", "evening", "any"]).describe("Best time to do this"),
+    },
+    async ({ name, weeklyTarget, lifeArea, defaultDuration, preferredTimeOfDay }) => {
+        const habit = await addHabit({ name, weeklyTarget, lifeArea, defaultDuration, preferredTimeOfDay });
+        return textResult(habit);
+    }
+);
+
+server.tool(
+    "habit_update",
+    "Update a habit definition",
+    {
+        id: z.string().describe("Habit ID"),
+        name: z.string().optional().describe("New name"),
+        weeklyTarget: z.number().optional().describe("New weekly target"),
+        lifeArea: z.string().optional().describe("New life area"),
+        defaultDuration: z.number().optional().describe("New default duration in minutes"),
+        preferredTimeOfDay: z.enum(["morning", "afternoon", "evening", "any"]).optional().describe("New preferred time"),
+    },
+    async ({ id, ...updates }) => {
+        try {
+            const habit = await updateHabit(id, updates);
+            return textResult(habit);
+        } catch (err) {
+            return textResult((err as Error).message, true);
+        }
+    }
+);
+
+server.tool(
+    "habit_remove",
+    "Remove a habit by id",
+    {
+        id: z.string().describe("Habit ID"),
+    },
+    async ({ id }) => {
+        try {
+            await removeHabit(id);
+            return textResult({ removed: true, id });
+        } catch (err) {
+            return textResult((err as Error).message, true);
+        }
+    }
+);
+
+// ---------------------------------------------------------------------------
+// Daily log tools
+// ---------------------------------------------------------------------------
+
+server.tool(
+    "daily_log_get",
+    "Get a day's log (habits, reflection, highlights). Returns null if none exists.",
+    {
+        date: z.string().optional().describe("Date (YYYY-MM-DD). Defaults to today."),
+    },
+    async ({ date }) => {
+        const log = await getDailyLog(date);
+        if (!log) return textResult("No log for this date.");
+        return textResult(log);
+    }
+);
+
+server.tool(
+    "daily_log_update",
+    "Update a day's log (mark habits, add reflection, record highlights). Creates if needed.",
+    {
+        date: z.string().optional().describe("Date (YYYY-MM-DD). Defaults to today."),
+        habits: z.array(z.object({
+            habitId: z.string(),
+            habitName: z.string(),
+            completed: z.boolean(),
+            duration: z.number().optional(),
+            notes: z.string().optional(),
+        })).optional().describe("Habit entries for the day"),
+        reflection: z.object({
+            notes: z.string().optional(),
+            mood: z.enum(["great", "good", "okay", "rough", "bad"]).optional(),
+            energyRating: z.number().optional().describe("1-5"),
+        }).optional().describe("Daily reflection"),
+        plannedHighlights: z.array(z.string()).optional().describe("What was planned as important"),
+        actualHighlights: z.array(z.string()).optional().describe("What actually happened"),
+        adjustments: z.array(z.string()).optional().describe("Changes made to weekly plan"),
+    },
+    async ({ date, ...updates }) => {
+        const targetDate = date || todayDate();
+        const log = await updateDailyLog(targetDate, updates);
+        return textResult(log);
+    }
+);
+
+server.tool(
+    "daily_log_recent",
+    "Get last N days of daily logs (for weekly reviews and trend analysis)",
+    {
+        days: z.number().optional().describe("Number of days to fetch (default 7, max 90)"),
+    },
+    async ({ days }) => {
+        const count = Math.min(days || 7, 90);
+        const logs = await getRecentLogs(count);
+        if (logs.length === 0) return textResult("No daily logs found.");
+        return textResult(logs);
     }
 );
 

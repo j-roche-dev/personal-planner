@@ -159,6 +159,8 @@ export async function updateItem(
         size?: "quick" | "medium" | "long";
         deadline?: string;
         completed?: boolean;
+        completionNote?: string;
+        billableHours?: number;
     }
 ): Promise<DailyChecklist> {
     const checklist = await getChecklist();
@@ -171,6 +173,8 @@ export async function updateItem(
     if (updates.area !== undefined) item.area = updates.area;
     if (updates.size !== undefined) item.size = updates.size;
     if (updates.deadline !== undefined) item.deadline = updates.deadline;
+    if (updates.completionNote !== undefined) item.completionNote = updates.completionNote;
+    if (updates.billableHours !== undefined) item.billableHours = updates.billableHours;
     if (updates.completed !== undefined) {
         item.completed = updates.completed;
         item.completedAt = updates.completed ? new Date().toISOString() : undefined;
