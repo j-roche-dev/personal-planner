@@ -17,6 +17,14 @@ export interface TimeSlot {
     energyLevel: "high" | "medium" | "low";
 }
 
+export interface SchedulingRules {
+    minBreakBetweenEvents: number; // minutes
+    maxMeetingsPerDay: number;
+    protectedBlocks: TimeBlock[];
+    preferredPlanningDay: string;
+    plannerCalendarId?: string;
+}
+
 export interface UserPreferences {
     energyPatterns: {
         highEnergy: TimeRange[];
@@ -28,12 +36,7 @@ export interface UserPreferences {
         weeklyTargetHours: number;
         priority: number; // 1 = highest
     }[];
-    schedulingRules: {
-        minBreakBetweenEvents: number; // minutes
-        maxMeetingsPerDay: number;
-        protectedBlocks: TimeBlock[];
-        preferredPlanningDay: string;
-    };
+    schedulingRules: SchedulingRules;
     categoryKeywords?: Record<string, string[]>;
 }
 
@@ -75,4 +78,40 @@ export interface Conflict {
     description: string;
     affectedEvents: string[];
     suggestedResolutions: string[];
+}
+
+export interface ChecklistItem {
+    id: string;
+    area: string;
+    text: string;
+    size?: "quick" | "medium" | "long";
+    deadline?: string; // YYYY-MM-DD
+    completed: boolean;
+    carriedFrom?: string;
+    completedAt?: string;
+}
+
+export interface DailyChecklist {
+    date: string;
+    items: ChecklistItem[];
+}
+
+export interface UserProfile {
+    name: string;
+    bio: string;
+    goals: string[];
+    planningCadence: {
+        weeklyPlanningTime: string;
+        dailyCheckinTime: string;
+        weeklyReviewTime: string;
+    };
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface SetupStatus {
+    technicalSetupComplete: boolean;
+    personalSetupComplete: boolean;
+    completedAt?: string;
 }
