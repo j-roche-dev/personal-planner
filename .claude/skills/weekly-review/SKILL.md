@@ -17,7 +17,7 @@ An end-of-week retrospective to reflect on what happened, celebrate wins, and id
 
 1. **Calendar review**: Fetch this past week's calendar events and analyze the full week.
 2. **Daily logs**: Fetch the past 7 days of daily logs (`daily_log_recent`).
-3. **Life-area breakdown**: Show time allocation across areas — am I hitting targets?
+3. **Life-area breakdown**: Show time allocation across areas — am I hitting targets for work, fitness, hobbies, personal, social?
 4. **Habit report**: Fetch habits (`habit_list` with `days=7`) and show completion rates vs weekly targets.
    Be encouraging about partial completion — progress matters more than perfection.
 5. **Mood/energy trends**: If mood and energy ratings were logged, show the pattern across the week.

@@ -11,6 +11,7 @@ Morning check-in with two parts: review yesterday, plan today. Keep it conversat
 ## Before Starting
 
 - **Check the time first:** Run `date "+%A %B %d %Y %l:%M %p"` via Bash to get the actual day of week, date, and time. Use this for greeting (good morning/afternoon/evening) and all date logic below. Never calculate the day of week mentally.
+- **Token expiry:** If any calendar tool returns a token expiry error, run `npm run auth` via Bash to re-authenticate. Wait for the user to complete the browser OAuth flow, then retry.
 - Fetch the user's profile (`profile_get`) — use their name and goals for context throughout.
 - Check today's day of week (from the `date` output above):
   - **Saturday/Sunday** → suggest `/weekend-checkin` instead (lighter touch for weekends).
@@ -44,6 +45,8 @@ After presenting the plan, ensure the dashboard is running:
 ## Throughout the Day
 
 When the user completes checklist items outside of the morning check-in, follow the **Item Completion Workflow** in CLAUDE.md — mark the item done, prompt for billing info if the area is billable, and update the daily log's `actualHighlights`.
+
+When the checklist changes significantly (items added/removed, priorities shifted), consider updating `plannedHighlights` via `daily_log_update` — see **Planned Highlights Revisit** in CLAUDE.md.
 
 ## Tone
 

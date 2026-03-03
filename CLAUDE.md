@@ -42,6 +42,7 @@ Tools call `ensureAuth()` → delegate to service layer → return via `textResu
 
 - **Never `console.log()`** — stdout is the MCP stdio JSON-RPC channel. All logging must use `console.error()`.
 - **`.env` required for calendar tools** — must contain `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (see `.env.example`). Run `npm run auth` once to complete OAuth and persist tokens to `data/tokens.json`.
+- **Token expiry detection** — `ensureAuth()` validates tokens via a lightweight API call. Expired tokens (common with Google's "testing" mode ~7 day expiry) return a clear message: "Google Calendar tokens have expired. Run: npm run auth". The `ping` tool also reports token health as "authenticated and verified" vs "token expired".
 - **ES Modules** — `"type": "module"`, `Node16` module resolution, all local imports use `.js` extensions.
 - **Planner calendar** — Events created by MCP tools go to the planner Google Calendar (configured via `schedulingRules.plannerCalendarId`). Analysis reads from both primary and planner calendars.
 
@@ -73,6 +74,10 @@ When a user reports completing work or asks to mark a checklist item done:
    - If they say "no" or "not billable", skip.
 3. Update `daily_log_update` — append to `actualHighlights` with a brief summary of what was done.
 4. For non-billable areas: just mark complete and add to actualHighlights without asking about billing.
+
+## Planned Highlights Revisit
+
+When the checklist changes significantly during the day (items added, removed, or reordered), consider whether `plannedHighlights` in the daily log should be updated via `daily_log_update`. This is a judgment call — not every checklist tweak warrants a highlights update, but major shifts in priorities should be reflected.
 
 ## Time Awareness
 
@@ -132,6 +137,24 @@ Separate React app in `dashboard/` with its own package.json, tsconfig, vite con
 - **Shares types** via tsconfig paths alias `@planner/types` → `../src/types.ts`
 - **Views:** Today (checklist + daily log side-by-side), Daily Log Browser (date nav), Trends (habit grid + mood/energy charts)
 - **Area colors** in `dashboard/src/constants.ts` with generic defaults and automatic fallback for unknown areas
+
+## Cross-Project Work Logging
+
+The `/log-work` global skill lets you log work from any project back to the planner's checklist and daily log. It auto-summarizes the session, fuzzy-matches checklist items, handles billing, and updates `actualHighlights`.
+
+**Installation:** Copy `templates/log-work-skill/SKILL.md` to `~/.claude/skills/log-work/SKILL.md`. Then configure the MCP server globally:
+
+```
+claude mcp add --scope user personal-planner -- node <path-to-your-planner>/build/index.js
+```
+
+**`.planner` file convention:** Place a `.planner` JSON file in project roots to pre-configure the work area:
+
+```json
+{ "area": "work", "description": "Main client project" }
+```
+
+The skill reads `area` from this file so you don't have to specify it each time. If no `.planner` file exists, the skill infers the area from conversation context or asks.
 
 ## Status
 
