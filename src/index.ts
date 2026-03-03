@@ -65,6 +65,8 @@ async function ensureAuth(): Promise<string | null> {
     if (!ok) {
         return "Google Calendar not authenticated. Run `npm run auth` to complete OAuth setup.";
     }
+    const tokenErr = await calendarService.validateAuth();
+    if (tokenErr) return tokenErr;
     return null;
 }
 
@@ -132,9 +134,14 @@ server.tool("ping", "Check server status and Google Calendar auth status", {}, a
     let calendarStatus = "not configured";
     if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
         const authenticated = await calendarService.authenticate();
-        calendarStatus = authenticated
-            ? "authenticated"
-            : "credentials configured, not authenticated (run `npm run auth`)";
+        if (!authenticated) {
+            calendarStatus = "credentials configured, not authenticated (run `npm run auth`)";
+        } else {
+            const tokenErr = await calendarService.validateAuth();
+            calendarStatus = tokenErr
+                ? "token expired — run `npm run auth` to re-authenticate"
+                : "authenticated and verified";
+        }
     }
     const setup = await getSetupStatus();
     return textResult({ status: "ok", server: "personal-planner", version: "0.1.0", googleCalendar: calendarStatus, setup });
@@ -702,6 +709,7 @@ server.prompt(
                         "   - If a planner calendar exists (e.g. 'planner-cli'), offer to set it via preferences_update.",
                         "   - If not, explain how to create one in Google Calendar and come back.",
                         "4. **Verify**: Run ping one final time to confirm everything is green.",
+                        "5. **Mark complete**: Once everything works, save setup status with technicalSetupComplete: true.",
                         "",
                         "Start by checking the current status now.",
                     ].join("\n"),

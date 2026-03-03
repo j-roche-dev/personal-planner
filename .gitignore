@@ -3,3 +3,14 @@ build/
 .env
 data/tokens.json
 data/preferences.json
+data/profile.json
+data/habits.json
+data/setup-status.json
+data/daily-logs/
+data/checklists/
+dashboard/dist/
+
+# Keep skills directories tracked
+!.claude/
+!.claude/skills/
+!.claude/skills/*/

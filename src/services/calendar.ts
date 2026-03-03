@@ -176,6 +176,19 @@ export class GoogleCalendarService {
         return all;
     }
 
+    async validateAuth(): Promise<string | null> {
+        try {
+            await this.calendar.calendarList.list({ maxResults: 1 });
+            return null;
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (message.includes("invalid_grant") || message.includes("Token has been expired or revoked")) {
+                return "Google Calendar tokens have expired. Run: npm run auth";
+            }
+            throw err;
+        }
+    }
+
     async getFreeBusy(timeMin: string, timeMax: string, calendarId = "primary") {
         const response = await this.calendar.freebusy.query({
             requestBody: {
