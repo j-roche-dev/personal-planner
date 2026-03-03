@@ -4,6 +4,12 @@ A personal productivity system you clone and run as your own. It's an [MCP](http
 
 **How ownership works:** You clone this repo and configure it with your own Google OAuth credentials. All your data — tokens, preferences, checklists, daily logs — stays local in a gitignored `data/` directory. You interact with it entirely through Claude Code, where it registers as an MCP server.
 
+## Dashboard
+
+![Dashboard — Today view](docs/dashboard-today.png)
+
+A read-only React dashboard for visual overview of your checklist, daily logs, and trends. Run with `npm run dashboard` and open `http://localhost:5173`. Three views: **Today** (checklist + daily log side-by-side), **Daily Logs** (date navigation with reflection, habits, highlights), and **Trends** (habit completion grid, mood/energy charts, checklist throughput). Reads directly from `data/` via a Vite dev server plugin — no separate backend needed.
+
 ## How It Works
 
 The server gives Claude Code direct access to your calendar, checklist, habits, and daily logs. When you ask Claude about your schedule or productivity, it can:
@@ -248,24 +254,6 @@ claude mcp add --scope user personal-planner -- node /path/to/personal-planner/b
 ```
 
 The skill reads `area` from this file so you don't have to specify it each time.
-
-## Dashboard
-
-A read-only React dashboard for visual overview of your checklist, daily logs, and trends.
-
-![Dashboard — Today view](docs/dashboard-today.png)
-
-```bash
-npm run dashboard    # or: cd dashboard && npm run dev
-```
-
-Opens at `http://localhost:5173` with three views:
-
-- **Today** — checklist grouped by area + daily log side-by-side
-- **Daily Logs** — date navigation with reflection, habits, highlights
-- **Trends** — habit completion grid, mood/energy charts, checklist throughput
-
-The dashboard reads directly from `data/` via a Vite dev server plugin — no separate backend needed.
 
 ## Preferences
 
