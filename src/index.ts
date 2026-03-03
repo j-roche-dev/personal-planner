@@ -24,6 +24,7 @@ import {
     addItem,
     updateItem,
     removeItem,
+    chainItems,
 } from "./services/checklist.js";
 import {
     getHabits,
@@ -348,22 +349,25 @@ server.tool(
 
 server.tool(
     "checklist_add",
-    "Add an item to today's checklist",
+    "Add an item to a checklist",
     {
         text: z.string().describe("What needs to be done"),
         area: z.string().describe("Work area (e.g. work, fitness, personal) or life area"),
         size: z.enum(["quick", "medium", "long"]).optional().describe("Estimated size: quick (<15min), medium (15-60min), long (>1h)"),
         deadline: z.string().optional().describe("Due date (YYYY-MM-DD)"),
+        chainId: z.string().optional().describe("Chain ID to add this item to an existing chain"),
+        chainOrder: z.number().optional().describe("0-based position within the chain"),
+        date: z.string().optional().describe("Date (YYYY-MM-DD). Defaults to today."),
     },
-    async ({ text, area, size, deadline }) => {
-        const checklist = await addItem(text, area, size, deadline);
+    async ({ text, area, size, deadline, chainId, chainOrder, date }) => {
+        const checklist = await addItem(text, area, size, deadline, chainId, chainOrder, date);
         return textResult(checklist);
     }
 );
 
 server.tool(
     "checklist_update",
-    "Update a checklist item (mark complete, change text/area/size/deadline, add billing info)",
+    "Update a checklist item (mark complete, change text/area/size/deadline, add billing info, chain/unchain)",
     {
         id: z.string().describe("Checklist item ID"),
         text: z.string().optional().describe("New text"),
@@ -373,10 +377,13 @@ server.tool(
         completed: z.boolean().optional().describe("Mark as completed (true) or incomplete (false)"),
         completionNote: z.string().optional().describe("Billing description or completion note"),
         billableHours: z.number().optional().describe("Billable hours (e.g. 1.5)"),
+        chainId: z.string().nullable().optional().describe("Chain ID (set null to unchain)"),
+        chainOrder: z.number().optional().describe("0-based position within the chain"),
+        date: z.string().optional().describe("Date (YYYY-MM-DD). Defaults to today. When completing a past date's item, carried-over copies are auto-synced."),
     },
-    async ({ id, text, area, size, deadline, completed, completionNote, billableHours }) => {
+    async ({ id, text, area, size, deadline, completed, completionNote, billableHours, chainId, chainOrder, date }) => {
         try {
-            const checklist = await updateItem(id, { text, area, size, deadline, completed, completionNote, billableHours });
+            const checklist = await updateItem(id, { text, area, size, deadline, completed, completionNote, billableHours, chainId, chainOrder }, date);
             return textResult(checklist);
         } catch (err) {
             return textResult((err as Error).message, true);
@@ -386,13 +393,31 @@ server.tool(
 
 server.tool(
     "checklist_remove",
-    "Remove an item from today's checklist",
+    "Remove an item from a checklist",
     {
         id: z.string().describe("Checklist item ID"),
+        date: z.string().optional().describe("Date (YYYY-MM-DD). Defaults to today."),
     },
-    async ({ id }) => {
+    async ({ id, date }) => {
         try {
-            const checklist = await removeItem(id);
+            const checklist = await removeItem(id, date);
+            return textResult(checklist);
+        } catch (err) {
+            return textResult((err as Error).message, true);
+        }
+    }
+);
+
+server.tool(
+    "checklist_chain",
+    "Chain existing checklist items in a specified order. All items must be in the same area.",
+    {
+        itemIds: z.array(z.string()).describe("Ordered array of checklist item IDs to chain together"),
+        date: z.string().optional().describe("Date (YYYY-MM-DD). Defaults to today."),
+    },
+    async ({ itemIds, date }) => {
+        try {
+            const checklist = await chainItems(itemIds, date);
             return textResult(checklist);
         } catch (err) {
             return textResult((err as Error).message, true);

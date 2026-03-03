@@ -5,6 +5,11 @@ interface Props {
     items: ChecklistItem[];
 }
 
+interface ChainGroup {
+    chainId: string;
+    items: ChecklistItem[];
+}
+
 function groupByArea(items: ChecklistItem[]): [string, ChecklistItem[]][] {
     const groups = new Map<string, ChecklistItem[]>();
     for (const item of items) {
@@ -14,6 +19,127 @@ function groupByArea(items: ChecklistItem[]): [string, ChecklistItem[]][] {
     }
     // Preserve insertion order — items arrive pre-sorted from server
     return [...groups.entries()];
+}
+
+function extractChains(items: ChecklistItem[]): { chains: ChainGroup[]; standalone: ChecklistItem[] } {
+    const chainMap = new Map<string, ChecklistItem[]>();
+    const standalone: ChecklistItem[] = [];
+
+    for (const item of items) {
+        if (item.chainId) {
+            const group = chainMap.get(item.chainId) ?? [];
+            group.push(item);
+            chainMap.set(item.chainId, group);
+        } else {
+            standalone.push(item);
+        }
+    }
+
+    const chains: ChainGroup[] = [];
+    for (const [chainId, chainItems] of chainMap) {
+        chainItems.sort((a, b) => (a.chainOrder ?? 0) - (b.chainOrder ?? 0));
+        chains.push({ chainId, items: chainItems });
+    }
+
+    return { chains, standalone };
+}
+
+function ChecklistItemRow({ item }: { item: ChecklistItem }) {
+    return (
+        <div
+            className={`flex items-center gap-3 ${
+                item.completed ? "opacity-50" : ""
+            }`}
+        >
+            <span
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
+                    item.completed
+                        ? "border-green-400 bg-green-100 text-green-600 dark:border-green-600 dark:bg-green-900/40 dark:text-green-400"
+                        : "border-gray-300 dark:border-gray-600"
+                }`}
+            >
+                {item.completed && (
+                    <svg
+                        className="h-3 w-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={3}
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M5 13l4 4L19 7"
+                        />
+                    </svg>
+                )}
+            </span>
+            <span
+                className={`flex-1 text-sm ${
+                    item.completed
+                        ? "line-through text-gray-400 dark:text-gray-500"
+                        : "text-gray-800 dark:text-gray-200"
+                }`}
+            >
+                {item.text}
+            </span>
+            {item.deadline && (() => {
+                const status = getDeadlineStatus(item.deadline);
+                const label = formatDeadlineLabel(item.deadline);
+                const styles = item.completed
+                    ? "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+                    : status === "overdue"
+                    ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                    : status === "urgent"
+                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                    : "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300";
+                return (
+                    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${styles}`}>
+                        {label}
+                    </span>
+                );
+            })()}
+            {item.size && (
+                <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                    {SIZE_LABELS[item.size] ?? item.size}
+                </span>
+            )}
+            {item.carriedFrom && (
+                <span className="text-xs text-amber-500" title={`Carried from ${item.carriedFrom}`}>
+                    ↩
+                </span>
+            )}
+        </div>
+    );
+}
+
+function ChainGroupView({ chain }: { chain: ChainGroup }) {
+    return (
+        <div className="relative">
+            {chain.items.map((item, idx) => {
+                const isFirst = idx === 0;
+                const isLast = idx === chain.items.length - 1;
+                return (
+                    <div key={item.id} className="flex">
+                        {/* Connector column: thin line with small node */}
+                        <div className="flex w-3 shrink-0 flex-col items-center">
+                            <div className={`w-0.5 flex-1 ${isFirst ? "" : "bg-gray-300 dark:bg-gray-600"}`} />
+                            <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                item.completed
+                                    ? "bg-green-400 dark:bg-green-500"
+                                    : "bg-gray-300 dark:bg-gray-500"
+                            }`} />
+                            <div className={`w-0.5 flex-1 ${isLast ? "" : "bg-gray-300 dark:bg-gray-600"}`} />
+                        </div>
+                        {/* Checkbox + item content */}
+                        <div className="flex-1 py-1">
+                            <ChecklistItemRow item={item} />
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
 }
 
 export default function ChecklistView({ items }: Props) {
@@ -31,6 +157,10 @@ export default function ChecklistView({ items }: Props) {
         <div className="space-y-4">
             {groups.map(([area, areaItems]) => {
                 const color = getAreaColor(area);
+                const { chains, standalone } = extractChains(areaItems);
+                const hasChains = chains.length > 0;
+                const hasStandalone = standalone.length > 0;
+
                 return (
                     <div
                         key={area}
@@ -47,77 +177,21 @@ export default function ChecklistView({ items }: Props) {
                                 {areaItems.length}
                             </span>
                         </div>
-                        <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-                            {areaItems.map((item) => (
-                                <li
-                                    key={item.id}
-                                    className={`flex items-center gap-3 px-4 py-2.5 ${
-                                        item.completed
-                                            ? "opacity-50"
-                                            : ""
-                                    }`}
-                                >
-                                    <span
-                                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
-                                            item.completed
-                                                ? "border-green-400 bg-green-100 text-green-600 dark:border-green-600 dark:bg-green-900/40 dark:text-green-400"
-                                                : "border-gray-300 dark:border-gray-600"
-                                        }`}
-                                    >
-                                        {item.completed && (
-                                            <svg
-                                                className="h-3 w-3"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
-                                                strokeWidth={3}
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    d="M5 13l4 4L19 7"
-                                                />
-                                            </svg>
-                                        )}
-                                    </span>
-                                    <span
-                                        className={`flex-1 text-sm ${
-                                            item.completed
-                                                ? "line-through text-gray-400 dark:text-gray-500"
-                                                : "text-gray-800 dark:text-gray-200"
-                                        }`}
-                                    >
-                                        {item.text}
-                                    </span>
-                                    {item.deadline && (() => {
-                                        const status = getDeadlineStatus(item.deadline);
-                                        const label = formatDeadlineLabel(item.deadline);
-                                        const styles = item.completed
-                                            ? "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
-                                            : status === "overdue"
-                                            ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                                            : status === "urgent"
-                                            ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
-                                            : "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300";
-                                        return (
-                                            <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${styles}`}>
-                                                {label}
-                                            </span>
-                                        );
-                                    })()}
-                                    {item.size && (
-                                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                                            {SIZE_LABELS[item.size] ?? item.size}
-                                        </span>
-                                    )}
-                                    {item.carriedFrom && (
-                                        <span className="text-xs text-amber-500" title={`Carried from ${item.carriedFrom}`}>
-                                            ↩
-                                        </span>
-                                    )}
-                                </li>
+                        <div className="px-4 py-3">
+                            {chains.map((chain) => (
+                                <div key={chain.chainId} className="mb-2">
+                                    <ChainGroupView chain={chain} />
+                                </div>
                             ))}
-                        </ul>
+                            {hasChains && hasStandalone && (
+                                <div className="my-2 border-t border-dashed border-gray-200 dark:border-gray-700" />
+                            )}
+                            {standalone.map((item) => (
+                                <div key={item.id} className="py-1">
+                                    <ChecklistItemRow item={item} />
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 );
             })}

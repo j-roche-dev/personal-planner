@@ -21,6 +21,7 @@ Morning check-in with two parts: review yesterday, plan today. Keep it conversat
 
 1. Fetch yesterday's checklist (`checklist_get` with yesterday's date) for any still-open items.
    Ask: "Did you finish these, or should they carry over?"
+   **Tip:** When marking yesterday's items complete, use `checklist_update` with `date` set to yesterday's date — this triggers a cascade that auto-completes carried-over copies in today's checklist.
 2. Fetch yesterday's daily log (`daily_log_get`). If habits weren't logged, ask briefly about each.
 3. Ask for a quick reflection: "How was yesterday? One sentence is fine."
    Optionally ask mood (great/good/okay/rough/bad) and energy (1-5) if it feels natural.

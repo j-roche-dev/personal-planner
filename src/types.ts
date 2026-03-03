@@ -91,6 +91,8 @@ export interface ChecklistItem {
     completedAt?: string;
     completionNote?: string;
     billableHours?: number;
+    chainId?: string; // Groups items into an ordered chain
+    chainOrder?: number; // 0-based position within the chain
 }
 
 export interface DailyChecklist {

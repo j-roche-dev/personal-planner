@@ -19,14 +19,14 @@ This is an MCP (Model Context Protocol) server that provides schedule planning t
 
 ### Entry Point & Registration
 
-`src/index.ts` is the single entry point that registers all MCP tools (24), resources (3), and prompts (2) directly on the `McpServer` instance. There are no separate files per tool/resource/prompt — everything is in one file. Recurring workflow orchestration (daily check-in, weekend check-in, weekly planning, weekly review) lives in `.claude/skills/` as Claude Code skills — see **Skills** section below.
+`src/index.ts` is the single entry point that registers all MCP tools (25), resources (3), and prompts (2) directly on the `McpServer` instance. There are no separate files per tool/resource/prompt — everything is in one file. Recurring workflow orchestration (daily check-in, weekend check-in, weekly planning, weekly review) lives in `.claude/skills/` as Claude Code skills — see **Skills** section below.
 
 ### Service Layer
 
 - **`src/services/calendar.ts`** — Google Calendar API wrapper (`googleapis`). Handles OAuth2 flow, CRUD operations, and free/busy queries. Can run standalone (`npm run auth`) for OAuth setup.
 - **`src/services/storage.ts`** — JSON file read/write to `data/` directory. Manages preferences, OAuth tokens, user profile, and setup status. Exports the shared `OAuthTokens` type.
 - **`src/services/analysis.ts`** — Pure functions for schedule analysis. All logic is testable without Google Calendar. Exports `analyzeDay`, `analyzeWeek`, `findFreeSlots`, `CalendarEvent` type.
-- **`src/services/checklist.ts`** — Daily checklist CRUD with carry-over logic. Stores one JSON file per day in `data/checklists/`. Incomplete items automatically carry forward to the next day. Items are sorted by area priority then size.
+- **`src/services/checklist.ts`** — Daily checklist CRUD with carry-over logic and chain support. Stores one JSON file per day in `data/checklists/`. Incomplete items automatically carry forward to the next day. Items are sorted by area priority, with chained items grouped before standalone items.
 - **`src/services/habits.ts`** — Habit definition CRUD. Stores all habits in `data/habits.json`. Includes `getHabitCompletionRate()` pure function for calculating rates from daily logs.
 - **`src/services/daily-log.ts`** — Daily log CRUD with per-day storage in `data/daily-logs/YYYY-MM-DD.json`. Logs capture habits, reflections, highlights, and adjustments. `getRecentLogs(N)` scans the directory for the N most recent days.
 
@@ -56,11 +56,25 @@ Tools call `ensureAuth()` → delegate to service layer → return via `textResu
 
 Storage: `data/checklists/YYYY-MM-DD.json` — one file per day.
 
-Tools: `checklist_get`, `checklist_add`, `checklist_update`, `checklist_remove`.
+Tools: `checklist_get`, `checklist_add`, `checklist_update`, `checklist_remove`, `checklist_chain`.
 
-Carry-over: When no checklist exists for a date, incomplete items from the most recent prior day are copied over with `carriedFrom` set to the original date.
+**Date parameter:** All checklist write tools (`checklist_add`, `checklist_update`, `checklist_remove`, `checklist_chain`) accept an optional `date` parameter (YYYY-MM-DD, defaults to today). Use this to operate on a specific day's checklist — e.g., marking yesterday's item complete during a morning review.
 
-Sort order: area priority (from `lifeAreas[].priority` in preferences), then size (quick > medium > long), completed items last.
+**Carry-over cascade:** When completing an item on a past date via `checklist_update`, carried-over copies in subsequent checklists (up to today) are automatically marked complete too. This prevents stale incomplete copies lingering in today's checklist. The cascade matches by `text` and `carriedFrom` origin date, and propagates `completionNote` and `billableHours`.
+
+Carry-over: When no checklist exists for a date, incomplete items from the most recent prior day are copied over with `carriedFrom` set to the original date. Chain fields (`chainId`, `chainOrder`) are preserved through carry-over.
+
+Sort order: area priority (from `lifeAreas[].priority` in preferences), then chained items before standalone (grouped by `chainId`, sorted by `chainOrder`), then standalone items by size (quick > medium > long), completed items last.
+
+## Chained Checklist Items
+
+Use chains when checklist items have a natural sequential order (e.g., "consolidate data -> calculate burndown -> run analysis"). Chains express ordering within an area without relying on fragile number prefixes in the text.
+
+**Data model:** `ChecklistItem` has optional `chainId` (groups items) and `chainOrder` (0-based position). Both fields are backward-compatible — existing items without them are standalone.
+
+**How to chain:** Use `checklist_chain` with an ordered array of item IDs. All items must be in the same area. The tool assigns a shared `chainId` and sequential `chainOrder` values. To add an item to an existing chain, use `checklist_add` or `checklist_update` with `chainId` and `chainOrder`. To unchain, set `chainId: null` via `checklist_update`.
+
+**Dashboard:** Chained items render with a thin vertical connector line and small dots to the left of the standard checkbox. Completed dots turn green. A dashed separator appears between chained and standalone items when both exist in an area.
 
 ## Item Completion Workflow
 
