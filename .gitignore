@@ -10,6 +10,9 @@ data/daily-logs/
 data/checklists/
 dashboard/dist/
 
+# Claude Code local settings
+.claude/settings.local.json
+
 # Keep skills directories tracked
 !.claude/
 !.claude/skills/

@@ -1,6 +1,8 @@
 # Personal Planner MCP Server
 
-An [MCP](https://modelcontextprotocol.io/) server that turns Claude Code into an intelligent scheduling partner and daily accountability system. It connects to your Google Calendar to analyze schedule density, detect conflicts, respect your energy patterns, track life-area balance, manage daily checklists, build habits, and log reflections — all through natural conversation.
+A personal productivity system you clone and run as your own. It's an [MCP](https://modelcontextprotocol.io/) server that turns Claude Code into an intelligent scheduling partner and daily accountability system — connecting to your Google Calendar to analyze schedule density, detect conflicts, respect your energy patterns, track life-area balance, manage daily checklists, build habits, and log reflections through natural conversation.
+
+**How ownership works:** You clone this repo and configure it with your own Google OAuth credentials. All your data — tokens, preferences, checklists, daily logs — stays local in a gitignored `data/` directory. You interact with it entirely through Claude Code, where it registers as an MCP server.
 
 ## How It Works
 
@@ -32,7 +34,36 @@ Events are automatically categorized into life areas using configurable keyword 
 >
 > Claude marks the checklist item complete, asks about billing notes, and updates today's daily log highlights.
 
+## Getting Started — Two Usage Models
+
+### Quick start (clone directly)
+
+Clone this repo, configure Google OAuth, and start using it. Your `data/` directory is gitignored, so you can pull upstream updates without overwriting your personal config.
+
+```bash
+git clone https://github.com/j-roche-dev/personal-planner.git
+cd personal-planner
+```
+
+### Own project (fork/copy)
+
+Create your own repo (e.g. "my-planner") for full control over customizations. More isolated, but you manage upstream sync yourself.
+
+Either way, continue with the [Setup](#setup) steps below.
+
+## Recommended Workflow
+
+Value comes from daily use. Here's the cadence the planner is designed around:
+
+- **Weekday mornings:** Say "Good morning" → triggers `/daily-checkin` (review yesterday, plan today)
+- **Weekend mornings:** Say "Good morning" → triggers `/weekend-checkin` (lighter touch, recharge focus)
+- **Sunday evening / Monday morning:** `/weekly-planning` — set priorities and schedule habits for the week
+- **End of week:** `/weekly-review` — retrospective with habit trends and mood/energy patterns
+- **Anytime, from any project:** `/log-work` — log completed work back to the planner's checklist and daily log
+
 ## Architecture
+
+![Data flow](docs/data-flow.png)
 
 ```
 src/
@@ -65,6 +96,8 @@ data/
 └── daily-logs/              # Per-day log JSON files
 ```
 
+> **Data stays local.** Everything in `data/` is gitignored — upstream pulls won't touch your personal config, tokens, or logs. The tracked file `data/preferences.example.json` serves as a template for new users.
+
 ## Setup
 
 ### Prerequisites
@@ -76,6 +109,7 @@ data/
 
 ```bash
 npm install
+cd dashboard && npm install && cd ..
 ```
 
 ### 2. Configure Google OAuth
@@ -108,6 +142,8 @@ npm run auth
 
 This opens a browser for the OAuth consent flow. Tokens are saved to `data/tokens.json` and refresh automatically.
 
+> **Token expiry heads-up:** While your OAuth consent screen is in Google's "Testing" mode, tokens expire after ~7 days. You'll see a clear error message when this happens — just re-run `npm run auth`. To avoid the recurring expiry, publish your consent screen in the Google Cloud Console (it's still private to your test users, but tokens last indefinitely).
+
 ### 4. Build
 
 ```bash
@@ -127,6 +163,8 @@ Replace `/path/to/personal-planner` with the actual path to this repo.
 In Claude Code, ask it to ping the personal planner. You should see `googleCalendar: "authenticated"` in the response.
 
 On first use, the server will suggest running the **setup-technical** and **setup-personal** prompts to configure your planner calendar, profile, life areas, energy patterns, habits, and goals through a guided conversation.
+
+**First session:** After onboarding, try saying "Good morning" — Claude will detect the time of day and trigger the appropriate check-in skill (daily or weekend). This is the main entry point for daily use.
 
 ## Tools
 
@@ -151,6 +189,7 @@ On first use, the server will suggest running the **setup-technical** and **setu
 | `checklist_add` | Add an item with area, size, and optional deadline |
 | `checklist_update` | Mark complete, update text/area/size, add billing notes |
 | `checklist_remove` | Remove an item |
+| `checklist_chain` | Chain items in sequential order within an area |
 
 ### Habits & Daily Logs
 
@@ -183,7 +222,7 @@ On first use, the server will suggest running the **setup-technical** and **setu
 
 ## Skills
 
-Recurring workflows are implemented as [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) that orchestrate the MCP tools interactively.
+Recurring workflows are implemented as [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) that orchestrate the MCP tools interactively. Skills live in `.claude/skills/` and travel with the clone — no separate installation needed.
 
 | Skill | Invocation | When |
 |---|---|---|
@@ -192,9 +231,29 @@ Recurring workflows are implemented as [Claude Code skills](https://docs.anthrop
 | Weekly Planning | `/weekly-planning` | Sunday evening / Monday morning — plan the week |
 | Weekly Review | `/weekly-review` | End of week — retrospective with trends |
 
+## Cross-Project Work Logging
+
+The `/log-work` global skill lets you log work from any project back to the planner's checklist and daily log. It auto-summarizes the session, fuzzy-matches checklist items, handles billing, and updates highlights.
+
+**Installation:** Copy `templates/log-work-skill/SKILL.md` to `~/.claude/skills/log-work/SKILL.md`. Then register the MCP server globally so other projects can reach the planner:
+
+```bash
+claude mcp add --scope user personal-planner -- node /path/to/personal-planner/build/index.js
+```
+
+**`.planner` file convention:** Place a `.planner` JSON file in project roots to pre-configure the work area:
+
+```json
+{ "area": "work", "description": "Main client project" }
+```
+
+The skill reads `area` from this file so you don't have to specify it each time.
+
 ## Dashboard
 
 A read-only React dashboard for visual overview of your checklist, daily logs, and trends.
+
+![Dashboard — Today view](docs/dashboard-today.png)
 
 ```bash
 npm run dashboard    # or: cd dashboard && npm run dev
@@ -230,7 +289,7 @@ npm run dashboard    # Launch dashboard dev server
 
 ## Testing
 
-Tests use [Vitest](https://vitest.dev/) and cover analysis, checklist, habits, and daily log services (74 tests).
+Tests use [Vitest](https://vitest.dev/) and cover analysis, checklist, habits, and daily log services (99 tests).
 
 ```bash
 npm test              # Single run

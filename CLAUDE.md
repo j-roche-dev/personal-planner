@@ -19,7 +19,7 @@ This is an MCP (Model Context Protocol) server that provides schedule planning t
 
 ### Entry Point & Registration
 
-`src/index.ts` is the single entry point that registers all MCP tools (25), resources (3), and prompts (2) directly on the `McpServer` instance. There are no separate files per tool/resource/prompt — everything is in one file. Recurring workflow orchestration (daily check-in, weekend check-in, weekly planning, weekly review) lives in `.claude/skills/` as Claude Code skills — see **Skills** section below.
+`src/index.ts` is the single entry point that registers all MCP tools (24), resources (3), and prompts (2) directly on the `McpServer` instance. There are no separate files per tool/resource/prompt — everything is in one file. Recurring workflow orchestration (daily check-in, weekend check-in, weekly planning, weekly review) lives in `.claude/skills/` as Claude Code skills — see **Skills** section below.
 
 ### Service Layer
 
@@ -108,6 +108,20 @@ At session start, check setup status via ping. If incomplete:
 - Both done → proceed normally
 
 Don't block the user — just a friendly one-time nudge per session.
+
+## Helping New Users Set Up
+
+When assisting someone setting up their own planner instance, walk them through in this order:
+
+1. **Google OAuth** — Create a Google Cloud project, enable Calendar API, configure consent screen, create Desktop OAuth credentials, populate `.env`
+2. **`npm run auth`** — Complete the browser-based OAuth flow. Mention the token expiry gotcha: "Testing" mode tokens expire after ~7 days; publishing the consent screen avoids this
+3. **`npm run build`** — Compile TypeScript
+4. **MCP registration** — `claude mcp add --transport stdio --scope user personal-planner -- node /path/to/build/index.js`
+5. **Onboarding prompts** — Run `setup-technical` first (planner calendar selection), then `setup-personal` (profile, life areas, energy patterns, habits, goals)
+6. **Dashboard** — `cd dashboard && npm install && npm run dev` for the visual overview
+7. **First check-in** — Suggest saying "Good morning" to trigger the daily check-in skill
+
+Point them to `data/preferences.example.json` as a reference for the preference structure.
 
 ## Skills
 
